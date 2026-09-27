@@ -1,0 +1,21 @@
+# SQL Server / SSMS
+*.bak
+*.mdf
+*.ldf
+*.ndf
+*.sqlplan
+*.ssmssln
+*.ssmssqlproj
+*.suo
+.vs/
+
+# Power BI
+*.pbix
+*.pbit
+
+# OS / editors
+Thumbs.db
+.DS_Store
+*.swp
+.idea/
+.vscode/
