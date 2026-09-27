@@ -1,3 +1,6 @@
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+GO
 /* =============================================================================
    08 · Tests — a tiny assertion framework in T-SQL (no tSQLt dependency)
    -----------------------------------------------------------------------------
@@ -125,21 +128,22 @@ BEGIN
     SELECT @n = COUNT(*) FROM dim.Date d1 WHERE NOT EXISTS (SELECT 1 FROM dim.Date d2 WHERE d2.FullDate = DATEADD(DAY, 1, d1.FullDate)) AND d1.FullDate < (SELECT MAX(FullDate) FROM dim.Date);
     EXEC test.usp_AssertEquals @RunID, 'dim.Date has no gaps', 0, @n;
 
-    SELECT @n = COUNT(*) FROM dim.Date WHERE (DayName IN ('Friday','Saturday')) <> (IsWeekend = 1);
+    SELECT @n = COUNT(*) FROM dim.Date
+    WHERE (DayName IN ('Friday','Saturday') AND IsWeekend = 0) OR (DayName NOT IN ('Friday','Saturday') AND IsWeekend = 1);
     EXEC test.usp_AssertEquals @RunID, 'dim.Date: Egyptian weekend flag (Fri/Sat) is consistent', 0, @n;
 
     /* ---- facts ------------------------------------------------------------ */
     SELECT @n = COUNT(*) - COUNT(DISTINCT TransactionID) FROM fact.[Transaction];
-    EXEC test.usp_AssertEquals @RunID, 'fact.[Transaction]: no duplicate TransactionID', 0, @n;
+    EXEC test.usp_AssertEquals @RunID, 'fact.Transaction: no duplicate TransactionID', 0, @n;
 
     SELECT @n = COUNT(*) FROM fact.[Transaction] WHERE CustomerKey = -1 OR AccountKey = -1 OR ChannelKey = -1 OR TxnTypeKey = -1;
-    EXEC test.usp_AssertEquals @RunID, 'fact.[Transaction]: every surrogate key resolved', 0, @n;
+    EXEC test.usp_AssertEquals @RunID, 'fact.Transaction: every surrogate key resolved', 0, @n;
 
     SELECT @n = COUNT(*) FROM fact.[Transaction] f
     JOIN dim.Customer c ON c.CustomerKey = f.CustomerKey
     JOIN dim.Date d ON d.DateKey = f.DateKey
     WHERE NOT (CAST(d.FullDate AS DATETIME2(0)) >= c.ValidFrom AND CAST(d.FullDate AS DATETIME2(0)) < c.ValidTo);
-    EXEC test.usp_AssertEquals @RunID, 'fact.[Transaction]: CustomerKey is the SCD2 version valid on the txn date', 0, @n;
+    EXEC test.usp_AssertEquals @RunID, 'fact.Transaction: CustomerKey is the SCD2 version valid on the txn date', 0, @n;
 
     SELECT @n = COUNT(*) FROM audit.DataQualityResult WHERE LoadID = (SELECT MAX(LoadID) FROM audit.DataQualityResult) AND Status = 'FAIL';
     EXEC test.usp_AssertEquals @RunID, 'audit: latest data-quality gate has no FAIL', 0, @n;
