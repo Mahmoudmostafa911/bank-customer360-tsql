@@ -78,7 +78,7 @@ RETURNS TABLE
 AS
 RETURN
 (
-    SELECT CAST(ABS(CHECKSUM(HASHBYTES('MD5', CONCAT(@Salt, ':', @n))) % 1000000) AS DECIMAL(9,6)) / 1000000.0 AS v   -- % before ABS: no overflow on -2^31
+    SELECT CAST(ABS(CHECKSUM(HASHBYTES('MD5', CONCAT(@Salt, ':', @n))) % 1000000) / 1000000.0 AS DECIMAL(9,6)) AS v   -- % before ABS: no overflow on -2^31
 );
 GO
 
