@@ -1,0 +1,9 @@
+/* Drops the demo database.  Irreversible. */
+USE master;
+GO
+IF DB_ID(N'BankDW') IS NOT NULL
+BEGIN
+    ALTER DATABASE BankDW SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE BankDW;
+END
+GO
