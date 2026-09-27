@@ -354,10 +354,10 @@ CREATE OR ALTER PROCEDURE etl.usp_StageTransactions
 AS
 BEGIN
     SET NOCOUNT ON;
-    TRUNCATE TABLE stg.Transaction;
+    TRUNCATE TABLE stg.[Transaction];
 
     DECLARE @Watermark DATETIME2(0) =
-        ISNULL((SELECT LastLoadedValue FROM etl.Watermark WHERE TableName = N'fact.Transaction'), '1900-01-01');
+        ISNULL((SELECT LastLoadedValue FROM etl.Watermark WHERE TableName = N'fact.[Transaction]'), '1900-01-01');
     -- one-hour lookback absorbs late-arriving rows; TransactionID uniqueness keeps the load idempotent
     DECLARE @From DATETIME2(0) = DATEADD(HOUR, -1, @Watermark);
 
@@ -381,7 +381,7 @@ BEGIN
                              WHEN e.TxnDate < '2000-01-01'                    THEN 'Implausible TxnDate'
                              WHEN NOT EXISTS (SELECT 1 FROM dim.Account a WHERE a.AccountID = e.AccountID) THEN 'Orphan: unknown AccountID'
                         END,
-               AlreadyLoaded = CASE WHEN EXISTS (SELECT 1 FROM fact.Transaction f WHERE f.TransactionID = e.TransactionID) THEN 1 ELSE 0 END
+               AlreadyLoaded = CASE WHEN EXISTS (SELECT 1 FROM fact.[Transaction] f WHERE f.TransactionID = e.TransactionID) THEN 1 ELSE 0 END
         FROM extract_rows AS e
     )
     SELECT * INTO #classified FROM classified;
@@ -396,7 +396,7 @@ BEGIN
 
     SELECT @RowsSkipped = COUNT(*) FROM #classified WHERE Reason IS NULL AND AlreadyLoaded = 1;
 
-    INSERT INTO stg.Transaction (TransactionID, AccountID, TxnDate, TxnTime, TxnType, Channel, MerchantCategory, Amount, CreatedAt)
+    INSERT INTO stg.[Transaction] (TransactionID, AccountID, TxnDate, TxnTime, TxnType, Channel, MerchantCategory, Amount, CreatedAt)
     SELECT TransactionID, AccountID, TxnDate, ISNULL(TxnTime, '00:00:00'),
            COALESCE(NULLIF(TRIM(TxnType), ''), 'Unknown'), COALESCE(NULLIF(TRIM(Channel), ''), 'Unknown'),
            NULLIF(TRIM(MerchantCategory), ''), Amount, CreatedAt
@@ -408,7 +408,7 @@ BEGIN
 END
 GO
 
-/* ───────────────────────────── 8 · fact.Transaction ─────────────────────── */
+/* ───────────────────────────── 8 · fact.[Transaction] ─────────────────────── */
 CREATE OR ALTER PROCEDURE etl.usp_LoadFactTransaction
     @LoadID       INT,
     @RowsInserted INT = NULL OUTPUT
@@ -419,7 +419,7 @@ BEGIN
 
     BEGIN TRAN;
 
-    INSERT INTO fact.Transaction (TransactionID, DateKey, TxnTime, AccountKey, CustomerKey, ProductKey, BranchKey,
+    INSERT INTO fact.[Transaction] (TransactionID, DateKey, TxnTime, AccountKey, CustomerKey, ProductKey, BranchKey,
                                   ChannelKey, TxnTypeKey, MerchantCategory, Amount, IsCredit, LoadID)
     SELECT s.TransactionID,
            YEAR(s.TxnDate) * 10000 + MONTH(s.TxnDate) * 100 + DAY(s.TxnDate),
@@ -434,7 +434,7 @@ BEGIN
            s.Amount,
            CASE WHEN s.Amount > 0 THEN 1 ELSE 0 END,
            @LoadID
-    FROM stg.Transaction AS s
+    FROM stg.[Transaction] AS s
     JOIN dim.Account          AS a  ON a.AccountID = s.AccountID
     LEFT JOIN dim.Customer    AS c  ON c.CustomerID = a.CustomerID
                                    AND CAST(s.TxnDate AS DATETIME2(0)) >= c.ValidFrom
@@ -446,9 +446,9 @@ BEGIN
     -- advance the watermark only when something was loaded
     IF @RowsInserted > 0
     BEGIN
-        DECLARE @MaxCreated DATETIME2(0) = (SELECT MAX(CreatedAt) FROM stg.Transaction);
+        DECLARE @MaxCreated DATETIME2(0) = (SELECT MAX(CreatedAt) FROM stg.[Transaction]);
         MERGE etl.Watermark AS w
-        USING (SELECT N'fact.Transaction' AS TableName, @MaxCreated AS v) AS s ON w.TableName = s.TableName
+        USING (SELECT N'fact.[Transaction]' AS TableName, @MaxCreated AS v) AS s ON w.TableName = s.TableName
         WHEN MATCHED AND s.v > w.LastLoadedValue THEN UPDATE SET LastLoadedValue = s.v, LastLoadID = @LoadID, UpdatedAt = SYSUTCDATETIME()
         WHEN NOT MATCHED THEN INSERT (TableName, LastLoadedValue, LastLoadID) VALUES (s.TableName, s.v, @LoadID);
     END
@@ -552,7 +552,7 @@ BEGIN
                FeeAmount    = SUM(CASE WHEN tt.TxnType = 'Fee' THEN -f.Amount ELSE 0 END),
                DigitalTxnCount = SUM(CASE WHEN ch.IsDigital = 1 THEN 1 ELSE 0 END),
                LastTxnDate  = MAX(d.FullDate)
-        FROM fact.Transaction AS f
+        FROM fact.[Transaction] AS f
         JOIN dim.Date AS d ON d.DateKey = f.DateKey
         JOIN dim.TransactionType AS tt ON tt.TxnTypeKey = f.TxnTypeKey
         JOIN dim.Channel AS ch ON ch.ChannelKey = f.ChannelKey
@@ -665,7 +665,7 @@ BEGIN
                Spend12M      = SUM(CASE WHEN tt.TxnGroup IN ('Spending','Cash') AND f.Amount < 0 THEN -f.Amount ELSE 0 END),
                DigitalTxnPct = 100.0 * SUM(CASE WHEN ch.IsDigital = 1 THEN 1 ELSE 0 END) / COUNT(*),
                LastTxnDateKey = MAX(f.DateKey)
-        FROM fact.Transaction AS f
+        FROM fact.[Transaction] AS f
         JOIN dim.Account AS a ON a.AccountKey = f.AccountKey
         JOIN dim.TransactionType AS tt ON tt.TxnTypeKey = f.TxnTypeKey
         JOIN dim.Channel AS ch ON ch.ChannelKey = f.ChannelKey
@@ -675,7 +675,7 @@ BEGIN
     lasttxn AS
     (
         SELECT a.CustomerID, LastTxnDateKey = MAX(f.DateKey)
-        FROM fact.Transaction AS f
+        FROM fact.[Transaction] AS f
         JOIN dim.Account AS a ON a.AccountKey = f.AccountKey
         WHERE f.DateKey <= @SnapshotDateKey
         GROUP BY a.CustomerID
@@ -797,11 +797,11 @@ BEGIN
     WHERE v.PrevValidTo IS NOT NULL AND v.PrevValidTo <> v.ValidFrom;
 
     -- 3. Fact keys resolved
-    INSERT INTO @r SELECT 'fact.Transaction: no unresolved CustomerKey (-1)', 'FAIL', COUNT(*), '0 rows', NULL, CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END
-    FROM fact.Transaction WHERE CustomerKey = -1;
+    INSERT INTO @r SELECT 'fact.[Transaction]: no unresolved CustomerKey (-1)', 'FAIL', COUNT(*), '0 rows', NULL, CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END
+    FROM fact.[Transaction] WHERE CustomerKey = -1;
 
-    INSERT INTO @r SELECT 'fact.Transaction: no unresolved Channel/TxnType (-1)', 'WARN', COUNT(*), '0 rows', NULL, CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END
-    FROM fact.Transaction WHERE ChannelKey = -1 OR TxnTypeKey = -1;
+    INSERT INTO @r SELECT 'fact.[Transaction]: no unresolved Channel/TxnType (-1)', 'WARN', COUNT(*), '0 rows', NULL, CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END
+    FROM fact.[Transaction] WHERE ChannelKey = -1 OR TxnTypeKey = -1;
 
     -- 4. Reconciliation against the source: every valid, non-duplicate, non-future source row is in the fact, once
     ;WITH valid_src AS
@@ -817,7 +817,7 @@ BEGIN
     totals AS
     (
         SELECT (SELECT COUNT(*) FROM valid_src) AS SrcRows, (SELECT SUM(Amount) FROM valid_src) AS SrcAmount,
-               (SELECT COUNT(*) FROM fact.Transaction) AS FactRows, (SELECT SUM(Amount) FROM fact.Transaction) AS FactAmount
+               (SELECT COUNT(*) FROM fact.[Transaction]) AS FactRows, (SELECT SUM(Amount) FROM fact.[Transaction]) AS FactAmount
     )
     INSERT INTO @r
     SELECT 'Reconciliation: fact row count = valid source rows', 'FAIL', FactRows, CAST(SrcRows AS VARCHAR(20)),
@@ -827,11 +827,11 @@ BEGIN
            CONCAT('difference ', ABS(ISNULL(FactAmount, 0) - ISNULL(SrcAmount, 0))), CASE WHEN ABS(ISNULL(FactAmount, 0) - ISNULL(SrcAmount, 0)) < 0.01 THEN 1 ELSE 0 END FROM totals;
 
     -- 5. No future-dated facts, no dates outside dim.Date
-    INSERT INTO @r SELECT 'fact.Transaction: no future-dated rows', 'FAIL', COUNT(*), '0 rows', NULL, CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END
-    FROM fact.Transaction WHERE DateKey > YEAR(@AsOfDate) * 10000 + MONTH(@AsOfDate) * 100 + DAY(@AsOfDate);
+    INSERT INTO @r SELECT 'fact.[Transaction]: no future-dated rows', 'FAIL', COUNT(*), '0 rows', NULL, CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END
+    FROM fact.[Transaction] WHERE DateKey > YEAR(@AsOfDate) * 10000 + MONTH(@AsOfDate) * 100 + DAY(@AsOfDate);
 
-    INSERT INTO @r SELECT 'fact.Transaction: every DateKey exists in dim.Date', 'FAIL', COUNT(*), '0 rows', NULL, CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END
-    FROM fact.Transaction f WHERE NOT EXISTS (SELECT 1 FROM dim.Date d WHERE d.DateKey = f.DateKey);
+    INSERT INTO @r SELECT 'fact.[Transaction]: every DateKey exists in dim.Date', 'FAIL', COUNT(*), '0 rows', NULL, CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END
+    FROM fact.[Transaction] f WHERE NOT EXISTS (SELECT 1 FROM dim.Date d WHERE d.DateKey = f.DateKey);
 
     -- 6. Snapshot integrity: last closing balance per account equals the sum of its transactions
     INSERT INTO @r SELECT 'Snapshot: closing balance = cumulative transactions', 'FAIL', COUNT(*), '0 accounts off', NULL, CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END
@@ -839,7 +839,7 @@ BEGIN
           FROM fact.AccountMonthSnapshot AS s
           JOIN (SELECT AccountKey, MAX(MonthKey) AS MaxMonth FROM fact.AccountMonthSnapshot GROUP BY AccountKey) AS lastm
                 ON lastm.AccountKey = s.AccountKey AND lastm.MaxMonth = s.MonthKey
-          LEFT JOIN (SELECT AccountKey, SUM(Amount) AS Total FROM fact.Transaction GROUP BY AccountKey) AS t ON t.AccountKey = s.AccountKey) AS v
+          LEFT JOIN (SELECT AccountKey, SUM(Amount) AS Total FROM fact.[Transaction] GROUP BY AccountKey) AS t ON t.AccountKey = s.AccountKey) AS v
     WHERE ABS(v.ClosingBalance - v.Total) >= 0.01;
 
     -- 7. Serving layer complete
@@ -912,9 +912,9 @@ BEGIN
         BEGIN
             SET @Step = 'Reset facts (Full mode)';
             EXEC etl.usp_LogStep @LoadID, @Step, 'Running', @LogID = @LogID OUTPUT;
-            TRUNCATE TABLE fact.Transaction;
+            TRUNCATE TABLE fact.[Transaction];
             TRUNCATE TABLE fact.AccountMonthSnapshot;
-            DELETE FROM etl.Watermark WHERE TableName = N'fact.Transaction';
+            DELETE FROM etl.Watermark WHERE TableName = N'fact.[Transaction]';
             EXEC etl.usp_LogStep @LoadID, @Step, 'Succeeded', @LogID = @LogID;
         END
 
@@ -965,7 +965,7 @@ BEGIN
 
         SET @Step = 'usp_BuildAccountMonthSnapshot';
         EXEC etl.usp_LogStep @LoadID, @Step, 'Running', @LogID = @LogID OUTPUT;
-        DECLARE @FromMonth INT = (SELECT MIN(DateKey) / 100 FROM fact.Transaction);
+        DECLARE @FromMonth INT = (SELECT MIN(DateKey) / 100 FROM fact.[Transaction]);
         DECLARE @ToMonth   INT = YEAR(@AsOfDate) * 100 + MONTH(@AsOfDate);
         IF @FromMonth IS NOT NULL
             EXEC etl.usp_BuildAccountMonthSnapshot @LoadID, @FromMonth, @ToMonth, @RowsInserted = @ins OUTPUT;

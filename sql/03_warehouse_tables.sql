@@ -48,8 +48,8 @@ CREATE TABLE stg.Account
     RowHash       BINARY(32)     NOT NULL
 );
 
-IF OBJECT_ID(N'stg.Transaction', N'U') IS NOT NULL DROP TABLE stg.Transaction;
-CREATE TABLE stg.Transaction
+IF OBJECT_ID(N'stg.[Transaction]', N'U') IS NOT NULL DROP TABLE stg.[Transaction];
+CREATE TABLE stg.[Transaction]
 (
     TransactionID    BIGINT         NOT NULL CONSTRAINT PK_stg_Transaction PRIMARY KEY CLUSTERED,
     AccountID        INT            NOT NULL,
@@ -77,7 +77,7 @@ CREATE NONCLUSTERED INDEX IX_stg_Rejected_Load ON stg.Rejected (LoadID, SourceTa
 GO
 
 /* ============================ DIMENSIONS (dim) ============================= */
-IF OBJECT_ID(N'fact.Transaction', N'U')          IS NOT NULL DROP TABLE fact.Transaction;
+IF OBJECT_ID(N'fact.[Transaction]', N'U')          IS NOT NULL DROP TABLE fact.[Transaction];
 IF OBJECT_ID(N'fact.AccountMonthSnapshot', N'U') IS NOT NULL DROP TABLE fact.AccountMonthSnapshot;
 IF OBJECT_ID(N'fact.Complaint', N'U')            IS NOT NULL DROP TABLE fact.Complaint;
 IF OBJECT_ID(N'rpt.Customer360', N'U')           IS NOT NULL DROP TABLE rpt.Customer360;
@@ -248,7 +248,7 @@ VALUES (-1, 'Unknown',        'Debit',  'Unknown',  0),
 GO
 
 /* ============================ FACTS (fact) ================================= */
-CREATE TABLE fact.Transaction
+CREATE TABLE fact.[Transaction]
 (
     TransactionKey   BIGINT IDENTITY(1,1) NOT NULL,
     TransactionID    BIGINT         NOT NULL,          -- degenerate dimension / idempotency key
@@ -266,10 +266,10 @@ CREATE TABLE fact.Transaction
     LoadID           INT            NOT NULL
 );
 -- Columnstore: analytics scans over a million rows in milliseconds and compresses ~10x.
-CREATE CLUSTERED COLUMNSTORE INDEX CCI_fact_Transaction ON fact.Transaction;
+CREATE CLUSTERED COLUMNSTORE INDEX CCI_fact_Transaction ON fact.[Transaction];
 -- Rowstore uniqueness index so the incremental load can reject re-sent rows cheaply.
-CREATE UNIQUE NONCLUSTERED INDEX UX_fact_Transaction_TransactionID ON fact.Transaction (TransactionID);
-CREATE NONCLUSTERED INDEX IX_fact_Transaction_Account_Date ON fact.Transaction (AccountKey, DateKey) INCLUDE (Amount);
+CREATE UNIQUE NONCLUSTERED INDEX UX_fact_Transaction_TransactionID ON fact.[Transaction] (TransactionID);
+CREATE NONCLUSTERED INDEX IX_fact_Transaction_Account_Date ON fact.[Transaction] (AccountKey, DateKey) INCLUDE (Amount);
 
 CREATE TABLE fact.AccountMonthSnapshot
 (

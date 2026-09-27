@@ -22,7 +22,7 @@ SELECT f.TransactionKey, f.TransactionID,
        f.Amount,
        CreditAmount = CASE WHEN f.Amount > 0 THEN  f.Amount ELSE 0 END,
        DebitAmount  = CASE WHEN f.Amount < 0 THEN -f.Amount ELSE 0 END
-FROM fact.Transaction AS f
+FROM fact.[Transaction] AS f
 JOIN dim.Date            AS d  ON d.DateKey     = f.DateKey
 JOIN dim.Customer        AS c  ON c.CustomerKey = f.CustomerKey
 JOIN dim.Account         AS a  ON a.AccountKey  = f.AccountKey
@@ -45,7 +45,7 @@ WITH tx AS
            FeeIncome        = SUM(CASE WHEN tt.TxnType = 'Fee' THEN -f.Amount ELSE 0 END),
            DigitalTxnPct    = 100.0 * SUM(CASE WHEN ch.IsDigital = 1 THEN 1 ELSE 0 END) / COUNT(*),
            CardSpend        = SUM(CASE WHEN tt.TxnType = 'CardPurchase' THEN -f.Amount ELSE 0 END)
-    FROM fact.Transaction AS f
+    FROM fact.[Transaction] AS f
     JOIN dim.Date AS d ON d.DateKey = f.DateKey
     JOIN dim.Account AS a ON a.AccountKey = f.AccountKey
     JOIN dim.TransactionType AS tt ON tt.TxnTypeKey = f.TxnTypeKey
@@ -131,7 +131,7 @@ SELECT b.BranchKey, b.BranchName, b.City, b.Governorate, b.Region,
                             AND s.MonthKey = (SELECT MAX(MonthKey) FROM fact.AccountMonthSnapshot))
 FROM dim.Branch AS b
 LEFT JOIN dim.Account AS a ON a.BranchKey = b.BranchKey
-LEFT JOIN fact.Transaction AS f ON f.AccountKey = a.AccountKey
+LEFT JOIN fact.[Transaction] AS f ON f.AccountKey = a.AccountKey
 LEFT JOIN dim.TransactionType AS tt ON tt.TxnTypeKey = f.TxnTypeKey
 LEFT JOIN dim.Channel AS ch ON ch.ChannelKey = f.ChannelKey
 WHERE b.BranchKey <> -1

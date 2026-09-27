@@ -129,17 +129,17 @@ BEGIN
     EXEC test.usp_AssertEquals @RunID, 'dim.Date: Egyptian weekend flag (Fri/Sat) is consistent', 0, @n;
 
     /* ---- facts ------------------------------------------------------------ */
-    SELECT @n = COUNT(*) - COUNT(DISTINCT TransactionID) FROM fact.Transaction;
-    EXEC test.usp_AssertEquals @RunID, 'fact.Transaction: no duplicate TransactionID', 0, @n;
+    SELECT @n = COUNT(*) - COUNT(DISTINCT TransactionID) FROM fact.[Transaction];
+    EXEC test.usp_AssertEquals @RunID, 'fact.[Transaction]: no duplicate TransactionID', 0, @n;
 
-    SELECT @n = COUNT(*) FROM fact.Transaction WHERE CustomerKey = -1 OR AccountKey = -1 OR ChannelKey = -1 OR TxnTypeKey = -1;
-    EXEC test.usp_AssertEquals @RunID, 'fact.Transaction: every surrogate key resolved', 0, @n;
+    SELECT @n = COUNT(*) FROM fact.[Transaction] WHERE CustomerKey = -1 OR AccountKey = -1 OR ChannelKey = -1 OR TxnTypeKey = -1;
+    EXEC test.usp_AssertEquals @RunID, 'fact.[Transaction]: every surrogate key resolved', 0, @n;
 
-    SELECT @n = COUNT(*) FROM fact.Transaction f
+    SELECT @n = COUNT(*) FROM fact.[Transaction] f
     JOIN dim.Customer c ON c.CustomerKey = f.CustomerKey
     JOIN dim.Date d ON d.DateKey = f.DateKey
     WHERE NOT (CAST(d.FullDate AS DATETIME2(0)) >= c.ValidFrom AND CAST(d.FullDate AS DATETIME2(0)) < c.ValidTo);
-    EXEC test.usp_AssertEquals @RunID, 'fact.Transaction: CustomerKey is the SCD2 version valid on the txn date', 0, @n;
+    EXEC test.usp_AssertEquals @RunID, 'fact.[Transaction]: CustomerKey is the SCD2 version valid on the txn date', 0, @n;
 
     SELECT @n = COUNT(*) FROM audit.DataQualityResult WHERE LoadID = (SELECT MAX(LoadID) FROM audit.DataQualityResult) AND Status = 'FAIL';
     EXEC test.usp_AssertEquals @RunID, 'audit: latest data-quality gate has no FAIL', 0, @n;
@@ -147,7 +147,7 @@ BEGIN
     SELECT @n = COUNT(*) FROM (SELECT s.AccountKey, s.ClosingBalance, ISNULL(t.Total, 0) AS Total
                                FROM fact.AccountMonthSnapshot s
                                JOIN (SELECT AccountKey, MAX(MonthKey) AS mk FROM fact.AccountMonthSnapshot GROUP BY AccountKey) lm ON lm.AccountKey = s.AccountKey AND lm.mk = s.MonthKey
-                               LEFT JOIN (SELECT AccountKey, SUM(Amount) AS Total FROM fact.Transaction GROUP BY AccountKey) t ON t.AccountKey = s.AccountKey) v
+                               LEFT JOIN (SELECT AccountKey, SUM(Amount) AS Total FROM fact.[Transaction] GROUP BY AccountKey) t ON t.AccountKey = s.AccountKey) v
     WHERE ABS(v.ClosingBalance - v.Total) >= 0.01;
     EXEC test.usp_AssertEquals @RunID, 'snapshot: closing balance reconciles to transactions for every account', 0, @n;
 
@@ -169,11 +169,11 @@ BEGIN
     /* ---- idempotency: re-running the incremental load must not add rows --- */
     IF @IncludeIdempotencyRun = 1
     BEGIN
-        DECLARE @before BIGINT = (SELECT COUNT(*) FROM fact.Transaction);
+        DECLARE @before BIGINT = (SELECT COUNT(*) FROM fact.[Transaction]);
         DECLARE @beforeDim INT = (SELECT COUNT(*) FROM dim.Customer);
         DECLARE @asOf DATE = (SELECT MAX(CAST(CreatedAt AS DATE)) FROM src.TransactionExtract);
         EXEC etl.usp_RunFullLoad @Mode = 'Incremental', @AsOfDate = @asOf, @FailOnDQ = 0;
-        SELECT @n = COUNT(*) FROM fact.Transaction;
+        SELECT @n = COUNT(*) FROM fact.[Transaction];
         EXEC test.usp_AssertEquals @RunID, 'idempotency: re-running the incremental load adds no fact rows', @before, @n;
         SELECT @n = COUNT(*) FROM dim.Customer;
         EXEC test.usp_AssertEquals @RunID, 'idempotency: unchanged customers get no new SCD2 versions', @beforeDim, @n;

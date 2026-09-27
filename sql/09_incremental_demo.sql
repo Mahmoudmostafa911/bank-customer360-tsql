@@ -18,9 +18,9 @@ GO
 DECLARE @Day2         DATE         = '2026-01-02';
 DECLARE @Day2Created  DATETIME2(0) = '2026-01-02 06:00:00';
 
-DECLARE @FactBefore BIGINT = (SELECT COUNT(*) FROM fact.Transaction);
+DECLARE @FactBefore BIGINT = (SELECT COUNT(*) FROM fact.[Transaction]);
 DECLARE @DimBefore  INT    = (SELECT COUNT(*) FROM dim.Customer);
-PRINT CONCAT('Before day 2: fact.Transaction = ', @FactBefore, ' rows, dim.Customer = ', @DimBefore, ' rows');
+PRINT CONCAT('Before day 2: fact.[Transaction] = ', @FactBefore, ' rows, dim.Customer = ', @DimBefore, ' rows');
 
 /* 1. new transactions ------------------------------------------------------- */
 IF OBJECT_ID('tempdb..#ActiveAcct') IS NOT NULL DROP TABLE #ActiveAcct;
@@ -111,7 +111,7 @@ SELECT * FROM etl.Watermark;
 
 PRINT '--- new fact rows are only the day-2 transactions ---';
 SELECT d.FullDate, COUNT(*) AS Txns, SUM(f.Amount) AS Net
-FROM fact.Transaction AS f JOIN dim.Date AS d ON d.DateKey = f.DateKey
+FROM fact.[Transaction] AS f JOIN dim.Date AS d ON d.DateKey = f.DateKey
 WHERE d.FullDate >= '2026-01-01'
 GROUP BY d.FullDate ORDER BY d.FullDate;
 
@@ -138,12 +138,12 @@ SELECT CheckName, Severity, Status, Observed, Expected FROM rpt.vw_DataQualityLa
 GO
 
 /* ---- run it AGAIN: nothing new should be loaded ------------------------------- */
-DECLARE @FactBefore BIGINT = (SELECT COUNT(*) FROM fact.Transaction);
+DECLARE @FactBefore BIGINT = (SELECT COUNT(*) FROM fact.[Transaction]);
 DECLARE @DimBefore  INT    = (SELECT COUNT(*) FROM dim.Customer);
 EXEC etl.usp_RunFullLoad @Mode = 'Incremental', @AsOfDate = '2026-01-02', @EffectiveDate = '2026-01-02 07:00:00';
-SELECT FactRowsBefore = @FactBefore, FactRowsAfter = (SELECT COUNT(*) FROM fact.Transaction),
+SELECT FactRowsBefore = @FactBefore, FactRowsAfter = (SELECT COUNT(*) FROM fact.[Transaction]),
        DimCustomerBefore = @DimBefore, DimCustomerAfter = (SELECT COUNT(*) FROM dim.Customer),
-       Verdict = CASE WHEN @FactBefore = (SELECT COUNT(*) FROM fact.Transaction) AND @DimBefore = (SELECT COUNT(*) FROM dim.Customer)
+       Verdict = CASE WHEN @FactBefore = (SELECT COUNT(*) FROM fact.[Transaction]) AND @DimBefore = (SELECT COUNT(*) FROM dim.Customer)
                       THEN 'idempotent: second run changed nothing' ELSE 'UNEXPECTED: counts changed' END;
 GO
 

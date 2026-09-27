@@ -41,7 +41,7 @@ GO
 ;WITH mac AS
 (
     SELECT d.MonthKey, COUNT(DISTINCT a.CustomerID) AS ActiveCustomers
-    FROM fact.Transaction AS f
+    FROM fact.[Transaction] AS f
     JOIN dim.Date    AS d ON d.DateKey    = f.DateKey
     JOIN dim.Account AS a ON a.AccountKey = f.AccountKey
     GROUP BY d.MonthKey
@@ -64,7 +64,7 @@ GO
     SELECT a.AccountID, d.FullDate, f.TxnTime, f.Amount,
            RunningBalance = SUM(f.Amount) OVER (PARTITION BY a.AccountID ORDER BY d.FullDate, f.TxnTime, f.TransactionKey
                                                 ROWS UNBOUNDED PRECEDING)
-    FROM fact.Transaction AS f
+    FROM fact.[Transaction] AS f
     JOIN dim.Date    AS d ON d.DateKey    = f.DateKey
     JOIN dim.Account AS a ON a.AccountKey = f.AccountKey
     JOIN dim.Product AS p ON p.ProductKey = a.ProductKey
@@ -134,7 +134,7 @@ GO
 activity AS
 (
     SELECT DISTINCT a.CustomerID, d.QuarterLabel, d.CalendarYear, d.QuarterNumber
-    FROM fact.Transaction AS f
+    FROM fact.[Transaction] AS f
     JOIN dim.Date    AS d ON d.DateKey    = f.DateKey
     JOIN dim.Account AS a ON a.AccountKey = f.AccountKey
 ),
@@ -165,7 +165,7 @@ SELECT MonthKey, [Mobile], [Internet], [ATM], [POS], [Branch], [CallCenter],
 FROM
 (
     SELECT d.MonthKey, ch.ChannelName, f.TransactionKey
-    FROM fact.Transaction AS f
+    FROM fact.[Transaction] AS f
     JOIN dim.Date    AS d  ON d.DateKey     = f.DateKey
     JOIN dim.Channel AS ch ON ch.ChannelKey = f.ChannelKey
     WHERE ch.ChannelName <> 'System'
@@ -181,7 +181,7 @@ CROSS APPLY
 (
     SELECT TOP (3) f.MerchantCategory, Spend = SUM(-f.Amount),
            Rnk = ROW_NUMBER() OVER (ORDER BY SUM(-f.Amount) DESC)
-    FROM fact.Transaction AS f
+    FROM fact.[Transaction] AS f
     JOIN dim.Customer AS c ON c.CustomerKey = f.CustomerKey
     JOIN dim.TransactionType AS tt ON tt.TxnTypeKey = f.TxnTypeKey
     WHERE c.Segment = seg.Segment AND tt.TxnType = 'CardPurchase'
@@ -249,7 +249,7 @@ GO
 ;WITH salary AS
 (
     SELECT f.AccountKey, a.CustomerID, c.IncomeBand, d.FullDate AS PayDate, f.Amount AS Salary
-    FROM fact.Transaction AS f
+    FROM fact.[Transaction] AS f
     JOIN dim.TransactionType AS tt ON tt.TxnTypeKey = f.TxnTypeKey
     JOIN dim.Date     AS d ON d.DateKey     = f.DateKey
     JOIN dim.Account  AS a ON a.AccountKey  = f.AccountKey
@@ -263,7 +263,7 @@ outflow AS
            Out7  = SUM(CASE WHEN d.FullDate <= DATEADD(DAY, 7,  s.PayDate) THEN -f.Amount ELSE 0 END),
            Out14 = SUM(CASE WHEN d.FullDate <= DATEADD(DAY, 14, s.PayDate) THEN -f.Amount ELSE 0 END)
     FROM salary AS s
-    JOIN fact.Transaction AS f ON f.AccountKey = s.AccountKey AND f.Amount < 0
+    JOIN fact.[Transaction] AS f ON f.AccountKey = s.AccountKey AND f.Amount < 0
     JOIN dim.Date AS d ON d.DateKey = f.DateKey
     WHERE d.FullDate BETWEEN s.PayDate AND DATEADD(DAY, 14, s.PayDate)
     GROUP BY s.AccountKey, s.PayDate, s.IncomeBand, s.Salary

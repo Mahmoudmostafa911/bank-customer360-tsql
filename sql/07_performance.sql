@@ -11,7 +11,7 @@ GO
 
 /* ---- 1. Build a rowstore twin of the fact table for a fair comparison -------- */
 IF OBJECT_ID(N'fact.Transaction_Rowstore', N'U') IS NOT NULL DROP TABLE fact.Transaction_Rowstore;
-SELECT * INTO fact.Transaction_Rowstore FROM fact.Transaction;
+SELECT * INTO fact.Transaction_Rowstore FROM fact.[Transaction];
 CREATE CLUSTERED INDEX CIX_Transaction_Rowstore ON fact.Transaction_Rowstore (DateKey, AccountKey);
 GO
 
@@ -20,7 +20,7 @@ SET STATISTICS IO, TIME ON;
 GO
 PRINT '--- columnstore ---';
 SELECT d.MonthKey, tt.TxnGroup, COUNT(*) AS Txns, SUM(f.Amount) AS Net
-FROM fact.Transaction AS f
+FROM fact.[Transaction] AS f
 JOIN dim.Date AS d ON d.DateKey = f.DateKey
 JOIN dim.TransactionType AS tt ON tt.TxnTypeKey = f.TxnTypeKey
 GROUP BY d.MonthKey, tt.TxnGroup
@@ -50,7 +50,7 @@ GROUP BY t.name;
 SELECT rg.partition_number, rg.row_group_id, rg.state_desc, rg.total_rows, rg.deleted_rows,
        CAST(rg.size_in_bytes / 1024.0 / 1024 AS DECIMAL(10,2)) AS SizeMB
 FROM sys.dm_db_column_store_row_group_physical_stats AS rg
-WHERE rg.object_id = OBJECT_ID(N'fact.Transaction')
+WHERE rg.object_id = OBJECT_ID(N'fact.[Transaction]')
 ORDER BY rg.row_group_id;
 GO
 
@@ -58,8 +58,8 @@ GO
         turns the idempotency check into a seek instead of a columnstore scan. */
 SET STATISTICS IO ON;
 GO
-SELECT TransactionKey, Amount FROM fact.Transaction WHERE TransactionID = 1000000123;                 -- seek on UX_fact_Transaction_TransactionID
-SELECT TransactionKey, Amount FROM fact.Transaction WITH (INDEX(CCI_fact_Transaction)) WHERE TransactionID = 1000000123;  -- forced scan for comparison
+SELECT TransactionKey, Amount FROM fact.[Transaction] WHERE TransactionID = 1000000123;                 -- seek on UX_fact_Transaction_TransactionID
+SELECT TransactionKey, Amount FROM fact.[Transaction] WITH (INDEX(CCI_fact_Transaction)) WHERE TransactionID = 1000000123;  -- forced scan for comparison
 GO
 SET STATISTICS IO OFF;
 GO
@@ -93,7 +93,7 @@ GO
 UPDATE STATISTICS dim.Customer WITH FULLSCAN;
 UPDATE STATISTICS dim.Account  WITH FULLSCAN;
 -- Reorganize closes open delta rowgroups and removes deleted rows from the columnstore
-ALTER INDEX CCI_fact_Transaction ON fact.Transaction REORGANIZE WITH (COMPRESS_ALL_ROW_GROUPS = ON);
+ALTER INDEX CCI_fact_Transaction ON fact.[Transaction] REORGANIZE WITH (COMPRESS_ALL_ROW_GROUPS = ON);
 GO
 
 /* ---- 8. Clean up the rowstore twin ------------------------------------------- */
