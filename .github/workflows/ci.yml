@@ -1,0 +1,71 @@
+name: CI
+
+# Builds the whole warehouse on a real SQL Server 2022 (Linux container),
+# runs the initial load, the 26 T-SQL tests, the analytics queries,
+# the performance lab and the day-2 incremental demo.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  SA_PASSWORD: "Ci_Passw0rd!2026"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Ci_Passw0rd!2026"
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+    env:
+      SQL: ${{ job.services.mssql.id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy the scripts into the SQL Server container
+        run: docker cp sql "$SQL":/sql
+
+      - name: Wait for SQL Server
+        run: |
+          for i in $(seq 1 30); do
+            docker exec "$SQL" /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$SA_PASSWORD" -Q "SELECT @@VERSION" && exit 0
+            sleep 5
+          done
+          echo "SQL Server did not start in time"; exit 1
+
+      - name: 00-05 database, synthetic data, warehouse, procedures, views
+        run: |
+          for f in 00_create_database 01_source_extracts 02_generate_source_data 03_warehouse_tables 04_etl_procedures 05_analytics_views; do
+            echo "::group::$f"
+            docker exec "$SQL" /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -P "$SA_PASSWORD" -i /sql/$f.sql
+            echo "::endgroup::"
+          done
+
+      - name: Initial full load
+        run: docker exec "$SQL" /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -P "$SA_PASSWORD" -d BankDW -Q "EXEC etl.usp_RunFullLoad @Mode = 'Full';"
+
+      - name: Data-quality gate and load log
+        run: |
+          docker exec "$SQL" /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -P "$SA_PASSWORD" -d BankDW -W -Q "SET NOCOUNT ON; SELECT CheckName, Severity, Status, Observed, Expected FROM rpt.vw_DataQualityLatest; SELECT StepName, Status, DurationSec, RowsInserted, RowsUpdated, RowsRejected FROM rpt.vw_LoadRuns WHERE LoadID = (SELECT MAX(LoadID) FROM etl.LoadLog);"
+
+      - name: 08 tests (26 assertions incl. idempotency re-run)
+        run: |
+          docker exec "$SQL" /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -P "$SA_PASSWORD" -i /sql/08_tests.sql
+          docker exec "$SQL" /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -P "$SA_PASSWORD" -d BankDW -W -Q "EXEC test.usp_RunAll @IncludeIdempotencyRun = 1;"
+
+      - name: 06 analytics queries, 07 performance lab, 09 incremental demo
+        run: |
+          set -o pipefail
+          for f in 06_analytics_queries 07_performance 09_incremental_demo; do
+            echo "::group::$f"
+            docker exec "$SQL" /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -P "$SA_PASSWORD" -W -i /sql/$f.sql | tail -n 60
+            echo "::endgroup::"
+          done
