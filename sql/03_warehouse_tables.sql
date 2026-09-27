@@ -1,3 +1,6 @@
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+GO
 /* =============================================================================
    03 · Warehouse tables: staging, dimensions, facts, audit, serving
    -----------------------------------------------------------------------------
@@ -17,7 +20,7 @@ CREATE TABLE stg.Customer
 (
     CustomerID        INT            NOT NULL CONSTRAINT PK_stg_Customer PRIMARY KEY CLUSTERED,
     FullName          NVARCHAR(121)  NOT NULL,
-    Gender            VARCHAR(6)     NOT NULL,      -- Male / Female / Unknown
+    Gender            VARCHAR(7)     NOT NULL,      -- Male / Female / Unknown
     BirthDate         DATE           NULL,
     Segment           VARCHAR(20)    NOT NULL,
     City              NVARCHAR(60)   NOT NULL,
@@ -156,7 +159,7 @@ CREATE TABLE dim.Customer
     CustomerKey      INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_dim_Customer PRIMARY KEY CLUSTERED,
     CustomerID       INT            NOT NULL,
     FullName         NVARCHAR(121)  NOT NULL,
-    Gender           VARCHAR(6)     NOT NULL,
+    Gender           VARCHAR(7)     NOT NULL,
     BirthDate        DATE           NULL,
     AgeBand          VARCHAR(8)     NOT NULL,   -- derived at load time from BirthDate
     Segment          VARCHAR(20)    NOT NULL,
