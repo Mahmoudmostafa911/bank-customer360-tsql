@@ -141,7 +141,7 @@ CREATE TABLE dim.Channel
 (
     ChannelKey   INT           NOT NULL CONSTRAINT PK_dim_Channel PRIMARY KEY CLUSTERED,
     ChannelName  VARCHAR(15)   NOT NULL CONSTRAINT UQ_dim_Channel_Name UNIQUE,
-    ChannelGroup VARCHAR(10)   NOT NULL,   -- Digital / Assisted / SelfService / System
+    ChannelGroup VARCHAR(12)   NOT NULL,   -- Digital / Assisted / SelfService / System
     IsDigital    BIT           NOT NULL
 );
 
