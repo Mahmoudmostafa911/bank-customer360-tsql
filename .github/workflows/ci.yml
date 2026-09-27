@@ -25,10 +25,11 @@ jobs:
           MSSQL_PID: Developer
         ports:
           - 1433:1433
-    env:
-      SQL: ${{ job.services.mssql.id }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Locate the SQL Server container
+        run: echo "SQL=${{ job.services.mssql.id }}" >> "$GITHUB_ENV"
 
       - name: Copy the scripts into the SQL Server container
         run: docker cp sql "$SQL":/sql
